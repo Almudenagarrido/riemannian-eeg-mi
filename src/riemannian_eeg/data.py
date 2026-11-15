@@ -1,10 +1,13 @@
 """Data loading and preprocessing."""
 
+import warnings
 from pathlib import Path
 from moabb.utils import set_download_dir
 from moabb.datasets import BNCI2014_001
 from moabb.paradigms import MotorImagery
 
+# MOABB internally uses an MNE montage name deprecated in MNE 1.13.
+warnings.filterwarnings("ignore", message="Montage name 'standard_1005' is deprecated")
 
 # Download directory: <repo>/data
 DATA_DIR = Path(__file__).resolve().parents[2] / "data"
@@ -74,3 +77,44 @@ def load_subject(subject):
     """
     X, y, metadata = PARADIGM.get_data(dataset=DATASET, subjects=[subject])
     return X, y, metadata
+
+# Evaluation protocol: cross-session, i.e. the official BCI Competition IV split.
+# - Train on session 1 ('0train') and test on session 2 ('1test'),
+#   with one model per subject.
+# - The two sessions were recorded on different days: cap placement,
+#   electrode impedance and the subject's state change between them.
+#   This is the realistic BCI use case (calibrate one day, use it another).
+#   Randomly mixing trials from both days would make train and test too
+#   similar and give optimistic results.
+# - Riemannian methods are reported to be robust to this session-to-session
+#   variability, which makes this protocol especially relevant to compare
+#   them against the Euclidean baseline.
+# - It also makes our results comparable with the competition and literature.
+# - Validation data (only needed for SPDNet hyperparameters) must be taken
+#   from the training session; the test session is only used at the end.
+# Refs: Tangermann et al. (2012), Front. Neurosci. 6:55;
+#       Congedo, Barachant & Bhatia (2017), "Riemannian geometry for
+#       EEG-based brain-computer interfaces; a primer and a review",
+#       Brain-Computer Interfaces 4(3).
+TRAIN_SESSION, TEST_SESSION = "0train", "1test"
+
+
+def load_train_test(subject):
+    """Load one subject and split it into training and test sessions.
+
+    Parameters
+    ----------
+    subject : int
+        Subject number, from 1 to 9.
+
+    Returns
+    -------
+    X_train, y_train : ndarray
+        Epochs and labels from session 1 (training).
+    X_test, y_test : ndarray
+        Epochs and labels from session 2 (test).
+    """
+    X, y, metadata = load_subject(subject)
+    is_train = (metadata["session"] == TRAIN_SESSION).to_numpy()
+    is_test = (metadata["session"] == TEST_SESSION).to_numpy()
+    return X[is_train], y[is_train], X[is_test], y[is_test]
