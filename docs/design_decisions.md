@@ -23,13 +23,13 @@ At rest, the motor cortex shows synchronized oscillations in two rhythms:
 - **mu**: 8-13 Hz
 - **beta**: 13-30 Hz
 
-Imagining a movement activates the corresponding motor area, which makes these oscillations lose amplitude: **Event-Related Desynchronization (ERD)**. The 8-30 Hz band keeps both rhythms and removes slow drifts (< 8 Hz) and muscle noise (> 30 Hz). It is the standard choice for CSP.
+Imagining a movement activates the corresponding motor area, which makes these oscillations lose amplitude: **Event-Related Desynchronization (ERD)**. Hand imagery desynchronizes the mu rhythm over the contralateral hand area, while foot or tongue imagery can instead enhance it there (**Event-Related Synchronization, ERS**), which helps distinguish the 4 classes. Both effects are power changes within the mu and beta rhythms, so the 8-30 Hz band captures them, and it removes slow drifts (< 8 Hz) and muscle noise (> 30 Hz). It is the standard choice for CSP.
 
 To isolate the effect of the classifier (Euclidean vs Riemannian) and not of the preprocessing, the same fixed band is used for all subjects and all methods.
 
-**Possible extension:** subject-specific bands, e.g. a filter bank as in FBCSP (Ang et al., 2008). The 0-2 s fixation period of each trial could serve as the reference to find each subject's most reactive band, comparing its power spectrum with the imagery period (Pfurtscheller & Lopes da Silva, 1999). The bands must be selected on training data only, to avoid data leakage.
+**Possible extension:** subject-specific bands, e.g. a filter bank as in FBCSP (Ang et al., 2008). The 0-2 s fixation period of each trial could serve as the reference to find each subject's most reactive band, comparing its power spectrum with the imagery period. The bands must be selected on training data only, to avoid data leakage.
 
-Refs: Pfurtscheller & Lopes da Silva (1999); Guger, Ramoser & Pfurtscheller (2000); Ang et al. (2008).
+Refs: Pfurtscheller & Lopes da Silva (1999); Pfurtscheller et al. (2006); Guger, Ramoser & Pfurtscheller (2000); Ang et al. (2008).
 
 ## 3. Time window: t = 2-6 s
 
@@ -66,5 +66,6 @@ Classes are balanced, so accuracy is a reliable metric. Chance level is 25 % wit
 - Congedo, M., Barachant, A., Bhatia, R. (2017). Riemannian geometry for EEG-based brain-computer interfaces; a primer and a review. *Brain-Computer Interfaces*, 4(3).
 - Guger, C., Ramoser, H., Pfurtscheller, G. (2000). Real-time EEG analysis with subject-specific spatial patterns for a brain-computer interface (BCI). *IEEE Trans. Rehabil. Eng.*, 8(4).
 - Müller-Putz, G. R., Scherer, R., Brunner, C., Leeb, R., Pfurtscheller, G. (2008). Better than random? A closer look on BCI results. *International Journal of Bioelectromagnetism*, 10(1).
+- Pfurtscheller, G., Brunner, C., Schlögl, A., Lopes da Silva, F. H. (2006). Mu rhythm (de)synchronization and EEG single-trial classification of different motor imagery tasks. *NeuroImage*, 31(1), 153–159.
 - Pfurtscheller, G., Lopes da Silva, F. H. (1999). Event-related EEG/MEG synchronization and desynchronization: basic principles. *Clinical Neurophysiology*, 110(11). doi:10.1016/S1388-2457(99)00141-8
 - Tangermann, M. et al. (2012). Review of the BCI Competition IV. *Frontiers in Neuroscience*, 6, 55. doi:10.3389/fnins.2012.00055
