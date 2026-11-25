@@ -7,6 +7,7 @@ dependencies = [
     "matplotlib>=3.11.2",
     "moabb>=1.7.2",
     "pyriemann>=0.12",
+    "torch>=2.15.0",
 ]
 
 [build-system]
@@ -15,3 +16,8 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/riemannian_eeg"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+]
