@@ -7,8 +7,11 @@ the small validation sets (58 trials).
 
     uv run python scripts/tune_spdnet.py                  # SPDNet
     uv run python scripts/tune_spdnet.py --mode euclid    # ablation, tuned on its own
+    uv run python scripts/tune_spdnet.py --batchnorm      # SPDNet with Riemannian batch norm
 
 Tuning both modes gives the ablation the same chance as SPDNet.
+Re-centering day 2 with its own mean (--recenter session in run_spdnet.py) needs no tuning:
+the validation set is part of day 1, so that option does not change anything here.
 Edit the lists below to try other values.
 """
 
@@ -33,7 +36,9 @@ def main():
     p.add_argument("--subjects", type=int, nargs="+", default=list(range(1, 10)))
     p.add_argument("--seeds", type=int, default=2)
     p.add_argument("--epochs", type=int, default=200)
+    p.add_argument("--batchnorm", action="store_true")
     args = p.parse_args()
+    name = f"tune_{args.mode}" + ("_bn" if args.batchnorm else "")
 
     # day 1 of every subject (day 2 is loaded but never used here)
     day1 = {}
@@ -45,8 +50,8 @@ def main():
     for sizes in SIZES:
         for eps in EPS:
             for lr_stiefel in LR_STIEFEL:
-                cfg = Config(mode=args.mode, sizes=sizes, eps=eps,
-                             lr_stiefel=lr_stiefel, epochs=args.epochs)
+                cfg = Config(mode=args.mode, sizes=sizes, eps=eps, lr_stiefel=lr_stiefel,
+                             epochs=args.epochs, batchnorm=args.batchnorm)
                 val_accuracies = []
                 for subject, (C, y) in day1.items():
                     for seed in range(args.seeds):
@@ -62,14 +67,16 @@ def main():
 
     table = pd.DataFrame(rows).sort_values("val_acc", ascending=False)
     (RESULTS / "tuning").mkdir(parents=True, exist_ok=True)
-    table.to_csv(RESULTS / "tuning" / f"tune_{args.mode}.csv", index=False)
+    table.to_csv(RESULTS / "tuning" / f"{name}.csv", index=False)
 
     print("\nBest first:")
     print(table.to_string(index=False))
     best = table.iloc[0]
-    mode_option = "" if args.mode == "riemann" else " --mode euclid"
-    print("\nFinal run with the best combination:")
-    print(f"  uv run python scripts/run_spdnet.py{mode_option} "
+    options = ("" if args.mode == "riemann" else " --mode euclid") + \
+              (" --batchnorm" if args.batchnorm else "")
+    print(f"\nSaved results/tuning/{name}.csv")
+    print("Final run with the best combination:")
+    print(f"  uv run python scripts/run_spdnet.py{options} "
           f"--sizes {' '.join(map(str, best['sizes']))} "
           f"--eps {best['eps']:g} --lr-stiefel {best['lr_stiefel']:g}")
     print("If several combinations differ by less than their std, prefer the smallest network.")

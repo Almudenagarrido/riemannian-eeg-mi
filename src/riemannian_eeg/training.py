@@ -5,6 +5,11 @@ experimental protocol:
 
     choose_epochs  ->  uses day 1 only: decides how many epochs to train
     final_test     ->  trains on all of day 1 for that many epochs, evaluates once on day 2
+
+Options (see Config):
+    recenter="session"  day 2 is re-centered with its own Riemannian mean instead of the mean of
+                        day 1 (unsupervised adaptation: uses the day-2 matrices, never their labels)
+    batchnorm=True      Riemannian batch norm after each BiMap (SPDBatchNorm, Brooks et al., 2019)
 """
 
 import math
@@ -39,6 +44,8 @@ class Config:
     epochs: int = 200           # maximum number of epochs
     batch_size: int = 32
     val_fraction: float = 0.2   # part of day 1 kept for validation
+    recenter: str = "train"     # re-center day 2 with the mean of "train" (day 1) or its own "session"
+    batchnorm: bool = False     # Riemannian batch norm after each BiMap
 
 
 # ---------------------------------------------------------------------------
@@ -69,8 +76,9 @@ def to_torch(C, y=None):
 # ---------------------------------------------------------------------------
 
 def build_model(cfg, n_channels):
-    """SPDNet without batch norm: [BiMap -> ReEig] x len(sizes) -> LogEig -> Linear."""
-    return SPDNet([n_channels, *cfg.sizes], n_classes=N_CLASSES, batchnorm=False, eps=cfg.eps)
+    """SPDNet: [BiMap -> (SPDBatchNorm) -> ReEig] x len(sizes) -> LogEig -> Linear."""
+    return SPDNet([n_channels, *cfg.sizes], n_classes=N_CLASSES, batchnorm=cfg.batchnorm,
+                  eps=cfg.eps)
 
 
 def stiefel_weights(model):
@@ -103,6 +111,7 @@ def build_optimisers(model, cfg):
 
 @torch.no_grad()
 def loss_and_accuracy(model, C, y):
+    model.eval()  # batch norm uses its running mean (no effect without batch norm)
     scores = model(C)
     loss = F.cross_entropy(scores, y).item()
     accuracy = (scores.argmax(dim=1) == y).double().mean().item()
@@ -122,6 +131,7 @@ def train(C, y, cfg, seed, epochs, C_val=None, y_val=None):
 
     history = []
     for epoch in range(1, epochs + 1):
+        model.train()  # batch norm uses the mean of each mini-batch (set back by loss_and_accuracy)
         batches = torch.randperm(len(y), generator=shuffler).split(cfg.batch_size)
         for batch in batches:
             model.zero_grad()
@@ -171,20 +181,25 @@ def choose_epochs(C_train, y_train, cfg, seed):
 def final_test(C_train, y_train, C_test, y_test, cfg, seed, epochs):
     """Train on all of day 1 for `epochs` epochs, then evaluate once on day 2.
 
-    Both days are re-centered with the Riemannian mean of day 1.
+    Day 1 is re-centered with its own Riemannian mean. Day 2 is re-centered with the mean of
+    day 1 (cfg.recenter == "train") or with its own mean (cfg.recenter == "session").
     The labels of day 2 are only used here, to compute the final accuracy.
     """
-    M = mean_riemann(C_train)
-    C_tr, y_tr = to_torch(recenter(C_train, M), y_train)
-    C_te = to_torch(recenter(C_test, M))
+    M_train = mean_riemann(C_train)
+    M_test = mean_riemann(C_test) if cfg.recenter == "session" else M_train
+    C_tr, y_tr = to_torch(recenter(C_train, M_train), y_train)
+    C_te = to_torch(recenter(C_test, M_test))
 
     model, _ = train(C_tr, y_tr, cfg, seed, epochs)
 
+    model.eval()
     with torch.no_grad():
-        predictions = model(C_te).argmax(dim=1).numpy()
+        probabilities = torch.softmax(model(C_te), dim=1).numpy()
+    predictions = probabilities.argmax(axis=1)
     return {
         "accuracy": float(np.mean(predictions == y_test)),
         "kappa": float(cohen_kappa_score(y_test, predictions)),
+        "probabilities": probabilities,  # (n_test_trials, 4), for the ensemble over seeds
         "reeig_activity": reeig_activity(model, C_tr),
         "orthogonality_error": orthogonality_error(model),
     }
@@ -200,6 +215,7 @@ def reeig_activity(model, C):
 
     Close to 0: ReEig almost never acts and the network is almost linear.
     """
+    model.eval()
     fractions = []
     X = C
     for layer in model.spd_layers:
