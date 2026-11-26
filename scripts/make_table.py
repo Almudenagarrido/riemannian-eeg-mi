@@ -24,7 +24,9 @@ from scipy.stats import wilcoxon
 
 RESULTS = Path(__file__).resolve().parents[1] / "results"
 COLUMNS = ["method", "subject", "seed", "accuracy", "kappa"]
-ORDER = ["CSP+LDA (OvR)", "CSP+LDA (AJD)", "MDM", "TS+LR", "SPDNet", "SPDNet (Euclidean opt.)"]
+ORDER = ["CSP+LDA (OvR)", "CSP+LDA (AJD)", "MDM", "TS+LR", "SPDNet", "SPDNet (Euclidean opt.)",
+         "SPDNet + session recentering", "SPDNet + BN", "SPDNet + BN + session recentering"]
+# any other method (e.g. the ensembles) is added after these, in alphabetical order
 REFERENCE = "SPDNet"
 
 
@@ -35,6 +37,8 @@ def load_results():
         table = pd.read_csv(path)
         if set(COLUMNS).issubset(table.columns):
             tables.append(table[COLUMNS])
+    if not tables:
+        raise SystemExit("No results yet: run scripts/run_spdnet.py first.")
     return pd.concat(tables)
 
 
