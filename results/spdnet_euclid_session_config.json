@@ -1,0 +1,31 @@
+{
+  "mode": "euclid",
+  "sizes": [
+    16,
+    8
+  ],
+  "eps": 0.5,
+  "lr_stiefel": 0.3,
+  "lr": 0.01,
+  "weight_decay": 0.001,
+  "epochs": 400,
+  "batch_size": 32,
+  "val_fraction": 0.2,
+  "recenter": "session",
+  "batchnorm": false,
+  "subjects": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+  ],
+  "seeds": 5,
+  "ensemble": false,
+  "git_commit": "b831a3e036c92de67334d3f445b9ec0588c47453",
+  "uncommitted_changes": false
+}
