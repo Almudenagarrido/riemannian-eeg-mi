@@ -1,0 +1,165 @@
+% Section 4.1-4.3: data, preprocessing, evaluation protocol and Euclidean baseline (CSP + LDA).
+% Needs: amsmath, amssymb, graphicx, booktabs, subcaption, xcolor, natbib (author-year).
+% Everything marked with \pending{...} (red text) must be resolved when merging with the rest of the report.
+
+\providecommand{\pending}[1]{\textcolor{red}{#1}}
+% Folder with this part's figures, relative to the main .tex file.
+% From report/main.tex, define \newcommand{\databaselinefigdir}{data_baseline/figures} before \input.
+\providecommand{\databaselinefigdir}{figures}
+% Includes <figdir>/<name>.pdf or .png; shows a red placeholder if neither exists yet.
+\providecommand{\includefigure}[2]{%
+  \IfFileExists{\databaselinefigdir/#1.pdf}{\includegraphics[width=#2]{\databaselinefigdir/#1}}{%
+  \IfFileExists{\databaselinefigdir/#1.png}{\includegraphics[width=#2]{\databaselinefigdir/#1}}{%
+  \fbox{\parbox[c][3cm][c]{\dimexpr#2-2\fboxsep-2\fboxrule\relax}{\centering\pending{Missing figure: \texttt{\detokenize{#1}}}}}}}}
+
+% \pending{Parent \section heading (section 4) is defined by whoever merges the report.}
+
+\subsection{Data, preprocessing and evaluation protocol}
+\label{sec:data}
+
+The goal of this study is to assess how the way a method treats the geometry of the data, Euclidean or Riemannian, affects its ability to classify motor imagery from EEG. For this reason, all methods share exactly the same data, preprocessing and evaluation protocol. We also chose to keep the pipeline deliberately simple, avoiding techniques such as data augmentation, subject-specific frequency bands or artifact removal, which can legitimately improve results but fall outside the scope of this work.
+
+\paragraph{Dataset.}
+All experiments are carried out on dataset 2a of BCI Competition IV (\texttt{BNCI2014\_001} in the MOABB library; \citealp{jayaram2018}). The BCI Competitions arose from the need to find the best methods for decoding brain signals, as a key step towards brain-computer interfaces (BCIs). To make methods comparable, all participants worked on the same publicly released data \citep{tangermann2012}. This dataset was provided by Graz University of Technology and contains 4-class motor imagery recorded with 22 electroencephalography (EEG) electrodes on the scalp, plus 3 electrooculography (EOG) channels that record eye movements \citep{brunner2008}. Since then, it has become a reference benchmark, as decoding motor imagery remains an open problem.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Main properties of dataset 2a of BCI Competition IV.}
+  \label{tab:dataset}
+  \begin{tabular}{ll}
+    \toprule
+    Property & Value \\
+    \midrule
+    Subjects & 9 \\
+    Sessions per subject & 2, recorded on different days \\
+    Trials per session & 288 (72 per class) \\
+    Classes & left hand, right hand, feet, tongue \\
+    Channels & 22 EEG + 3 EOG \\
+    Sampling rate & 250~Hz \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\paragraph{Preprocessing.}
+The raw signals were recorded with a 0.5--100~Hz band-pass filter \citep{brunner2008}. However, the information relevant to motor imagery lies in a narrower range. At rest, the motor cortex oscillates in two rhythms, mu (8--13~Hz) and beta (13--30~Hz). Experimental EEG studies have shown that, when a movement is imagined, their power drops over the corresponding motor area (event-related desynchronization, ERD) and can rise in other areas (event-related synchronization, ERS) \citep{pfurtscheller1999, pfurtscheller2006}. We therefore restrict the signals to the 8--30~Hz band, as is common in the motor imagery literature \citep{barachant2012}. This keeps both rhythms and removes slow drifts and eye-movement artifacts below the band, as well as muscle activity and power-line noise above it.
+
+\paragraph{Trial window and channels.}
+In each trial, a fixation cross and a warning tone appear at $t = 0$~s, and at $t = 2$~s an arrow indicates the class. The subject then performs the motor imagery task until the cross disappears at $t = 6$~s \citep{brunner2008}, so we keep the 2--6~s window, which is also the default in MOABB. In line with the competition rules, we drop the EOG channels: eye movements may be correlated with the cue, so a classifier could rely on them instead of brain activity. At 250~Hz, each trial becomes a matrix of 22 electrodes $\times$ 1001 samples (both ends included).
+
+\paragraph{Representation.}
+As explained above, motor imagery is reflected in changes of band power over specific motor areas. The power of a signal is measured as the mean of its squared values, $\frac{1}{T}\sum_t x(t)^2$. Moreover, the band-pass filter removes any constant offset (a 0~Hz component), so each channel has zero mean and its power is simply its variance. A natural way to summarise a trial $X$ (22 electrodes $\times$ $T = 1001$ samples) is therefore its spatial covariance matrix:
+\begin{equation}
+  C = \frac{1}{T} X X^\top \in \mathbb{R}^{22 \times 22}.
+  \label{eq:cov}
+\end{equation}
+The diagonal of $C$ holds the power of each electrode, and the off-diagonal entries measure how much each pair of electrodes varies together. However, because the skull spreads the electrical activity (volume conduction), each electrode records a mixture of many sources \citep{nunez2006}, so the relevant information lies in how the signal is distributed across all electrodes. Spatial filtering methods exploit this by combining the electrodes with a weight vector $w \in \mathbb{R}^{22}$ into a virtual electrode $s(t) = w^\top x(t)$, whose power can be obtained directly from the covariance matrix:
+\begin{equation}
+  \frac{1}{T} \sum_t s(t)^2 = w^\top C\, w.
+  \label{eq:virtual_power}
+\end{equation}
+For any fixed $w$, this power depends on the trial only through its covariance matrix. $C$ therefore contains everything needed to compute the band power of any combination of electrodes, while reducing each trial from $22 \times 1001$ values to a $22 \times 22$ matrix.
+
+These matrices are symmetric by construction and positive definite, since $w^\top C w$ is the power of a signal, strictly positive for any $w \neq 0$ as long as no channel is a linear combination of the others. They therefore belong to the set of symmetric positive definite (SPD) matrices. This set is not a vector space: multiplying an SPD matrix by $-1$, or subtracting two of them, can give a negative power for some virtual electrode, and Euclidean operations such as the arithmetic mean can also distort the data (Section~\ref{sec:baseline}). Riemannian geometry addresses this with a metric under which the SPD set becomes a curved manifold, where distances and means never leave the set. How this geometry is handled is the core of this project.
+% \pending{If the theory section already explains SPD geometry, shorten this paragraph and cite it here.}
+
+\paragraph{Evaluation protocol.}
+EEG signals vary considerably between people, so we train one model per subject, as is standard practice on this dataset. Each model is trained on session 1 and tested on session 2, the official competition split, which reflects a realistic BCI scenario: the system is calibrated one day and used on another. Between sessions, the cap placement, the electrode impedance and the mental state of the subject change, so the covariance matrices of the same class shift, which is exactly where Riemannian methods are expected to be more robust \citep{congedo2017}. Any hyperparameter, such as the number of CSP filters (Section~\ref{sec:baseline}), is chosen using only session 1, through 5-fold stratified cross-validation, and session 2 is used only once, for the final evaluation. Otherwise, information from the test data would leak into the design of the model.
+
+\paragraph{Metrics.}
+Since the four classes are balanced, we report accuracy and Cohen's kappa, the official metric of the competition, which compares the accuracy obtained with that of a random classifier. With 4 balanced classes, a random classifier is correct 25\,\% of the time, and kappa reduces to
+\begin{equation}
+  \kappa = \frac{\mathrm{acc} - 0.25}{0.75},
+  \label{eq:kappa}
+\end{equation}
+so that 0 corresponds to chance level and 1 to perfect classification. However, a random classifier can exceed 25\,\% by luck: its number of correct predictions over the 288 test trials follows a binomial distribution $\mathcal{B}(288, 0.25)$, which reaches 29.5\,\% or more in less than 5\,\% of cases. Only accuracies above 29.5\,\% can therefore be considered better than chance with 95\,\% confidence \citep{mullerputz2008}.
+
+
+\subsection{Euclidean baseline: CSP + LDA}
+\label{sec:baseline}
+
+Since covariance matrices live in the SPD space (Section~\ref{sec:data}), treating them as Euclidean is not geometrically justified. To measure how much is lost by doing so, we first establish a Euclidean baseline with the classical motor imagery pipeline \citep{blankertz2008}. Common Spatial Patterns (CSP) learns spatial filters whose log-power differs most between classes, and Linear Discriminant Analysis (LDA) classifies the resulting features. CSP is also the core of FBCSP, the method that won the competition on this dataset \citep{ang2012}.
+
+\paragraph{Common Spatial Patterns.}
+A virtual electrode with weights $w$ has power $w^\top C w$ in a trial (Section~\ref{sec:data}), and CSP learns the weights whose power differs most between classes. For two classes, it first averages the covariance matrices of each class with the arithmetic mean, $\bar{C}_k = \frac{1}{N_k} \sum_{i \in k} C_i$, and measures the contrast between their average powers with the ratio
+\begin{equation}
+  J(w) = \frac{w^\top \bar{C}_1 w}{w^\top \bar{C}_2 w}.
+  \label{eq:csp_ratio}
+\end{equation}
+A high value of $J$ means high power in class 1 and low power in class 2, and a value close to zero the opposite. CSP therefore looks for both extremes of $J$, which capture the class-specific ERD/ERS described in Section~\ref{sec:data}. Since $J$ is invariant to the scale of $w$, $J(aw) = J(w)$, only the direction of $w$ matters, and its scale can be fixed with the constraint $w^\top \bar{C}_2 w = 1$. To find the extremes of $J$ under this constraint, we build the Lagrangian and set its gradient to zero:
+\begin{equation}
+  \nabla_w \left[ w^\top \bar{C}_1 w - \lambda \left( w^\top \bar{C}_2 w - 1 \right) \right] = 0
+  \;\Rightarrow\;
+  \bar{C}_1 w = \lambda \, \bar{C}_2 w.
+  \label{eq:gevp}
+\end{equation}
+This is a generalised eigenvalue problem whose solutions are all the stationary points of $J$. Multiplying both sides by $w^\top$ gives $\lambda = w^\top \bar{C}_1 w / w^\top \bar{C}_2 w = J(w)$, so the most discriminative filters are those at both ends of the spectrum, favouring class 1 and class 2 respectively \citep{blankertz2008}.
+
+\paragraph{From two to four classes.}
+The generalised eigenvalue problem diagonalises $\bar{C}_1$ and $\bar{C}_2$ simultaneously. This is always possible for two SPD matrices: whitening $\bar{C}_2$ turns it into the identity, and a rotation then diagonalises $\bar{C}_1$ without changing it. As a result, the virtual electrodes are uncorrelated within each class. With four classes this is not possible in general, since diagonalising four symmetric matrices imposes $2n(n-1)$ conditions on only $n^2$ free parameters. One-vs-rest (OvR) avoids the problem by training a binary CSP for each class against the other three. Multiclass CSP instead learns a single set of filters aiming at a joint approximate diagonalisation of the four matrices \citep{pham2001}, and ranks them by the mutual information between their output and the class label \citep{grossewentrup2008}.
+
+\paragraph{Features.}
+The $k$ selected filters $w_1, \dots, w_k \in \mathbb{R}^{22}$ are stacked as the columns of a matrix $W \in \mathbb{R}^{22 \times k}$, which maps the 22 electrodes of a trial into $k$ virtual electrodes. Each filter contributes one feature, the logarithm of its power:
+\begin{equation}
+  f_j = \log \left( w_j^\top C \, w_j \right), \qquad j = 1, \dots, k.
+  \label{eq:logpower}
+\end{equation}
+Since powers are positive and right-skewed, the logarithm makes their distribution closer to a Gaussian, as assumed by LDA \citep{blankertz2008}.
+
+\paragraph{Model selection.}
+For binary CSP, the usual choice is three pairs of filters \citep{blankertz2008, lotte2011}, which corresponds to $k = 12$ for four classes. With 5-fold stratified cross-validation on session 1 of all subjects, OvR with three pairs per binary problem and multiclass CSP with $k \in \{8, 12, 16\}$ reached practically the same mean accuracy (65.1--65.3\,\%), a difference far smaller than the variation across folds and subjects. We therefore keep the configuration justified a priori, multiclass CSP with $k = 12$ (MNE-Python; \citealp{gramfort2013}).
+
+\paragraph{Linear Discriminant Analysis.}
+LDA assumes that the features of each class are Gaussian, with their own mean $\mu_k$ but a common covariance $\Sigma$. Following Bayes' rule, a trial is assigned to the class that maximises $\log p(f \mid k) + \log \pi_k$. When the Gaussian log-density is expanded, the quadratic term $-\frac{1}{2} f^\top \Sigma^{-1} f$ is the same for every class because $\Sigma$ is shared, and so is the prior because the classes are balanced. Both can be dropped, leaving a score that is linear in $f$:
+\begin{equation}
+  \delta_k(f) = f^\top \Sigma^{-1} \mu_k - \tfrac{1}{2} \mu_k^\top \Sigma^{-1} \mu_k.
+  \label{eq:lda}
+\end{equation}
+Since it only estimates the class means and one covariance matrix, LDA is robust with small training sets and is the usual choice for CSP features \citep{blankertz2008}.
+
+\paragraph{Where the pipeline is Euclidean.}
+CSP averages the covariance matrices of each class with the arithmetic mean, which ignores the geometry of the SPD space. As a consequence, the mean can have a larger determinant than any of the matrices being averaged (swelling effect; \citealp{arsigny2006}), so the reference matrix of each class overestimates its power. LDA then treats the resulting features as vectors in a flat space, so the curvature of the SPD space is ignored at both steps, which is precisely what the Riemannian methods in the following sections address \citep{barachant2012}.
+
+
+\subsection{Baseline results}
+\label{sec:baseline_results}
+
+\paragraph{Test performance.}
+On the test session, the baseline reaches a mean accuracy of 62.8\,\% ($\kappa = 0.50$), and all subjects are above the 29.5\,\% chance threshold, although subject 5 only barely (the per-subject results of all methods are compared in \pending{Section~X, comparison table}). Performance varies widely across subjects, from around 78\,\% for subjects 1, 3 and 8 to 35\,\% for subject 5. This is the well-known inter-subject variability of motor imagery BCIs: some people produce a clear ERD and others barely any, regardless of the classifier.
+
+Compared with cross-validation on session 1, the mean accuracy drops only from 65.2\,\% to 62.8\,\%, but this average hides very different behaviours. Subject 7 falls from 82.0\,\% to 61.5\,\%: its model works well within the same day but does not transfer to the next one. This is precisely the session-to-session shift described in Section~\ref{sec:data}, so subject 7 is a key case when comparing with the Riemannian methods. As a reference, FBCSP, the winning method of the competition, reported a mean kappa of 0.569 \citep{ang2012}. A single-band CSP + LDA at 0.50 is therefore a reasonable baseline, although the competition computed kappa slightly differently, from continuous predictions within each trial.
+
+\paragraph{Spatial patterns.}
+Figure~\ref{fig:csp_patterns} shows the patterns of the 12 CSP filters for subject 1, that is, where on the scalp the activity captured by each virtual electrode lies. The most discriminative filters match the physiology. CSP 3 and 4 are centred on C3 and C4, over the left and right hand areas, CSP 1 and 2 form a similar left-right pair slightly more posterior (CP3 and CP4), and CSP 5 is centred on Cz, over the feet area. CSP therefore recovers the lateral contrast between hands and the midline activity of the feet from the labelled trials alone. Later filters are less clear: CSP 9 lies over the supplementary motor area (Fz, FCz), CSP 12 over the lateral motor cortex (C6), close to the tongue area, and CSP 7 and 10 over posterior electrodes (POz, Pz), probably capturing visual alpha or noise rather than motor imagery.
+
+% \pending{Figure placement and caption to be checked when merging.}
+\begin{figure}[t]
+  \centering
+  \includefigure{csp_patterns}{\linewidth}
+  \caption{\pending{Spatial patterns of the 12 multiclass CSP filters for subject 1, ordered by mutual information with the class. C3 and C4 lie over the left and right hand areas and Cz over the feet area. The sign of each pattern is arbitrary.}}
+  \label{fig:csp_patterns}
+\end{figure}
+
+\paragraph{Class separation.}
+Figure~\ref{fig:lda_space} projects the trials of subject 1 onto the first two of the three LDA discriminant axes, which together capture 89\,\% of the separation between classes. The first axis separates the hands from feet and tongue, consistent with the physiology: only the hands produce a lateralised ERD over C3 or C4. The second axis separates left from right hand and feet from tongue, with more overlap, and the third axis does not separate feet from tongue either. The same structure appears in the test session, but the clouds are wider and overlap more, which is the session shift seen directly in feature space.
+
+The confusion matrix pooled over all subjects (Figure~\ref{fig:confusion}) confirms these two pairs. Feet and tongue are confused with each other (21\,\% and 17\,\%), and so are the two hands (19\,\% of left-hand trials predicted as right hand). Surprisingly, feet (69\,\%) and tongue (73\,\%) are the best recognised classes, while the hands are worse (58\,\% right, 51\,\% left) and are often predicted as feet (17--19\,\%). Since the hands are well separated for subject 1, this likely comes from subjects whose hand ERD is weak or poorly lateralised, so that hand trials look like the non-lateral feet pattern. Distinguishing left from right hand thus appears to be the hardest part of the problem for this baseline.
+
+% \pending{Figure placement and captions to be checked when merging.}
+\begin{figure}[t]
+  \centering
+  \begin{subfigure}[b]{0.58\linewidth}
+    \centering
+    \includefigure{lda_space}{\linewidth}
+    \caption{\pending{Subject 1 on the first two LDA axes, training (left) and test (right) sessions.}}
+    \label{fig:lda_space}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[b]{0.38\linewidth}
+    \centering
+    \includefigure{confusion_matrix}{\linewidth}
+    \caption{\pending{Test confusion matrix pooled over all subjects, normalised by true class.}}
+    \label{fig:confusion}
+  \end{subfigure}
+  \caption{\pending{Class separation of the CSP + LDA baseline.}}
+  \label{fig:class_separation}
+\end{figure}
