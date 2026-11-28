@@ -22,3 +22,12 @@ Thumbs.db
 
 # Downloaded EEG datasets (too large for Git; fetched automatically by MOABB)
 data/
+
+# LaTeX
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
