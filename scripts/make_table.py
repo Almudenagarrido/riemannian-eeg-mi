@@ -248,6 +248,15 @@ def tex_escape(text):
     return str(text).replace("&", r"\&").replace("%", r"\%").replace("_", r"\_")
 
 
+def tex_short(name):
+    """Shorter method names for the paired table, so that it fits the page width."""
+    return tex_escape(name.replace(RC + " (ensemble of 5 seeds)", " + RC (ens.)")
+                      .replace(RC, " + RC").replace(" (Euclidean opt.)", " (Eucl.)")
+                      .replace(" (without RC)", "").replace(" (with RC)", "")
+                      .replace("Ablation: optimisation of W", "Ablation (opt. of W)")
+                      .replace("Effect of session recentering", "Effect of RC"))
+
+
 def to_latex(blocks, table, pairs):
     """Two booktabs tables; the best mean of each block in bold."""
     subjects = [c for c in table.columns if c.startswith("S") and c[1:].isdigit()]
@@ -282,17 +291,18 @@ def to_latex(blocks, table, pairs):
                 r"\caption{Paired comparisons between equivalent methods: mean difference in "
                 r"accuracy (percentage points), number of subjects where A is better, and two-sided "
                 r"Wilcoxon signed-rank test over the 9 subjects, raw and Holm-corrected within each "
-                r"question (with 9 subjects the smallest possible $p$ is 0.004).}",
+                r"question (with 9 subjects the smallest possible $p$ is 0.004). "
+                r"RC: session re-centring; Eucl.: Euclidean optimisation of the BiMap weights; ens.: ensemble of 5 seeds.}",
                 r"\label{tab:paired}",
-                r"\resizebox{\textwidth}{!}{%",
+                r"\footnotesize", r"\setlength{\tabcolsep}{4pt}",
                 r"\begin{tabular}{lllrrrr}", r"\toprule",
                 r"Comparison & A & B & $\Delta$ & A better & $p$ & $p$ (Holm) \\", r"\midrule"]
         for _, r in pairs.iterrows():
-            out.append(" & ".join([tex_escape(r["Comparison"]), tex_escape(r["A"]),
-                                   tex_escape(r["B"]), f"{r['Mean diff (A - B)']:+.1f}",
+            out.append(" & ".join([tex_short(r["Comparison"]), tex_short(r["A"]),
+                                   tex_short(r["B"]), f"${r['Mean diff (A - B)']:+.1f}$",
                                    r["A better in"], f"{r['p']:.3f}", f"{r['p (Holm)']:.3f}"])
                        + r" \\")
-        out += [r"\bottomrule", r"\end{tabular}}", r"\end{table}", ""]
+        out += [r"\bottomrule", r"\end{tabular}", r"\end{table}", ""]
     return "\n".join(out)
 
 
