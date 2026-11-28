@@ -32,7 +32,7 @@ Each trial enters the network as its $22 \times 22$ covariance matrix. Two block
   \xrightarrow{\text{linear}} \mathbb{R}^{4}.
   \label{eq:spdnet}
 \end{equation}
-Since the BiMap weights are constrained to Stiefel manifolds, the network has 456 free parameters: $\dim \mathrm{St}(22,16) = 216$ and $\dim \mathrm{St}(16,8) = 92$ for the filters, and 148 for the classifier. This is more than the 288 training trials of each subject, so overfitting is the main risk, and the protocol below relies on validation and on repeating each run with several seeds. We use the implementation described in \pending{Section~3}. Covariance matrices are estimated with Oracle Approximating Shrinkage (OAS; \citealp{chen2010}), which improves their conditioning before the eigenvalue decompositions of the network.
+Since the BiMap weights are constrained to Stiefel manifolds, the network has 456 free parameters: $\dim \mathrm{St}(22,16) = 216$ and $\dim \mathrm{St}(16,8) = 92$ for the filters, and 148 for the classifier. This is more than the 288 training trials of each subject, so overfitting is the main risk, and the protocol below relies on validation and on repeating each run with several seeds. We use the implementation described in \pending{Section~3}. Covariance matrices are estimated with Oracle Approximating Shrinkage (OAS; \citealp{chen2010}), which improves their conditioning before the eigenvalue decompositions of the network. The classical methods (\pending{Section~4.4}) use the sample covariance instead (Eq.~\ref{eq:cov}).
 
 \paragraph{Training protocol.}
 As for the other methods, the network is trained on session 1 and tested once on session 2 (Section~\ref{sec:data}). Since LogEig takes the logarithm at the identity, and the tangent space approximates the manifold best near the point where it is taken, the input matrices are first re-centred at the identity, $C_i \mapsto M^{-1/2} C_i M^{-1/2}$, where $M$ is the Riemannian mean of session 1. For each subject and seed:
@@ -83,7 +83,7 @@ Between sessions, the cap position and the electrode impedances change. This act
 \subsection{Comparison of methods}
 \label{sec:comparison}
 
-Table~\ref{tab:comparison} and Figure~\ref{fig:comparison} report the test accuracy of every method on each subject, without and with session re-centring. Since all methods share the same data, preprocessing and protocol, the differences between them can only come from how each one treats the geometry of the covariance matrices.
+Table~\ref{tab:comparison} and Figure~\ref{fig:comparison} report the test accuracy of every method on each subject, without and with session re-centring. All methods share the same data, frequency band, time window and evaluation protocol, and differ only in the covariance estimator (Section~\ref{sec:spdnet}) and in how they treat the geometry of the covariance matrices.
 
 \input{\resultsdir/comparison_table.tex}
 
