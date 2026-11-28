@@ -32,29 +32,30 @@ Filter bank TS+LR (tuned C) + session recentering & 85.8 & 59.4 & 83.0 & 68.8 & 
 
 \begin{table}[ht]
 \centering
-\caption{Paired comparisons between equivalent methods: mean difference in accuracy (percentage points), number of subjects where A is better, and two-sided Wilcoxon signed-rank test over the 9 subjects, raw and Holm-corrected within each question (with 9 subjects the smallest possible $p$ is 0.004).}
+\caption{Paired comparisons between equivalent methods: mean difference in accuracy (percentage points), number of subjects where A is better, and two-sided Wilcoxon signed-rank test over the 9 subjects, raw and Holm-corrected within each question (with 9 subjects the smallest possible $p$ is 0.004). RC: session re-centring; Eucl.: Euclidean optimisation of the BiMap weights; ens.: ensemble of 5 seeds.}
 \label{tab:paired}
-\resizebox{\textwidth}{!}{%
+\footnotesize
+\setlength{\tabcolsep}{4pt}
 \begin{tabular}{lllrrrr}
 \toprule
 Comparison & A & B & $\Delta$ & A better & $p$ & $p$ (Holm) \\
 \midrule
-Riemannian vs Euclidean (without RC) & MDM & CSP+LDA & -2.2 & 3/9 & 0.398 & 0.531 \\
-Riemannian vs Euclidean (without RC) & TS+LR & CSP+LDA & +4.1 & 7/9 & 0.055 & 0.164 \\
-Riemannian vs Euclidean (without RC) & SPDNet & CSP+LDA & +1.8 & 6/9 & 0.266 & 0.531 \\
-Network vs classical (without RC) & SPDNet & TS+LR & -2.3 & 2/9 & 0.129 & 0.387 \\
-Network vs classical (without RC) & SPDNet & MDM & +4.0 & 6/9 & 0.250 & 0.391 \\
-Network vs classical (with RC) & SPDNet + session recentering & TS+LR + session recentering & -1.9 & 2/9 & 0.055 & 0.219 \\
-Network vs classical (with RC) & SPDNet + session recentering & MDM + session recentering & +4.2 & 8/9 & 0.020 & 0.117 \\
-Network vs classical (with RC) & SPDNet + session recentering & TS+LR (tuned C) + session recentering & -2.4 & 2/9 & 0.027 & 0.137 \\
-Network vs classical (with RC) & SPDNet + session recentering (ensemble of 5 seeds) & TS+LR + session recentering & -0.8 & 2/9 & 0.195 & 0.391 \\
-Ablation: optimisation of W (without RC) & SPDNet & SPDNet (Euclidean opt.) & +0.0 & 5/9 & 1.000 & 1.000 \\
-Ablation: optimisation of W (with RC) & SPDNet + session recentering & SPDNet (Euclidean opt.) + session recentering & +1.3 & 8/9 & 0.020 & 0.039 \\
-Effect of session recentering & MDM + session recentering & MDM & +4.9 & 6/9 & 0.148 & 0.148 \\
-Effect of session recentering & TS+LR + session recentering & TS+LR & +4.6 & 8/9 & 0.020 & 0.059 \\
-Effect of session recentering & SPDNet (Euclidean opt.) + session recentering & SPDNet (Euclidean opt.) & +3.7 & 8/9 & 0.020 & 0.059 \\
-Effect of session recentering & SPDNet + session recentering & SPDNet & +5.0 & 9/9 & 0.004 & 0.016 \\
-Seed ensemble & SPDNet + session recentering (ensemble of 5 seeds) & SPDNet + session recentering & +1.0 & 8/9 & 0.008 & 0.008 \\
+Riemannian vs Euclidean & MDM & CSP+LDA & $-2.2$ & 3/9 & 0.398 & 0.531 \\
+Riemannian vs Euclidean & TS+LR & CSP+LDA & $+4.1$ & 7/9 & 0.055 & 0.164 \\
+Riemannian vs Euclidean & SPDNet & CSP+LDA & $+1.8$ & 6/9 & 0.266 & 0.531 \\
+Network vs classical & SPDNet & TS+LR & $-2.3$ & 2/9 & 0.129 & 0.387 \\
+Network vs classical & SPDNet & MDM & $+4.0$ & 6/9 & 0.250 & 0.391 \\
+Network vs classical & SPDNet + RC & TS+LR + RC & $-1.9$ & 2/9 & 0.055 & 0.219 \\
+Network vs classical & SPDNet + RC & MDM + RC & $+4.2$ & 8/9 & 0.020 & 0.117 \\
+Network vs classical & SPDNet + RC & TS+LR (tuned C) + RC & $-2.4$ & 2/9 & 0.027 & 0.137 \\
+Network vs classical & SPDNet + RC (ens.) & TS+LR + RC & $-0.8$ & 2/9 & 0.195 & 0.391 \\
+Ablation (opt. of W) & SPDNet & SPDNet (Eucl.) & $+0.0$ & 5/9 & 1.000 & 1.000 \\
+Ablation (opt. of W) & SPDNet + RC & SPDNet (Eucl.) + RC & $+1.3$ & 8/9 & 0.020 & 0.039 \\
+Effect of RC & MDM + RC & MDM & $+4.9$ & 6/9 & 0.148 & 0.148 \\
+Effect of RC & TS+LR + RC & TS+LR & $+4.6$ & 8/9 & 0.020 & 0.059 \\
+Effect of RC & SPDNet (Eucl.) + RC & SPDNet (Eucl.) & $+3.7$ & 8/9 & 0.020 & 0.059 \\
+Effect of RC & SPDNet + RC & SPDNet & $+5.0$ & 9/9 & 0.004 & 0.016 \\
+Seed ensemble & SPDNet + RC (ens.) & SPDNet + RC & $+1.0$ & 8/9 & 0.008 & 0.008 \\
 \bottomrule
-\end{tabular}}
+\end{tabular}
 \end{table}

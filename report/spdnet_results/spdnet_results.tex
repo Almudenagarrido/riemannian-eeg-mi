@@ -1,0 +1,141 @@
+% Section 4.5 (SPDNet: training protocol, ablation, session re-centering) and section 5 (results).
+% Needs: amsmath, amssymb, graphicx, booktabs, xcolor, natbib (author-year). Same conventions as
+% data_baseline.tex. Everything marked with \pending{...} (red text) must be resolved when merging.
+%
+% Figures and the comparison tables are read directly from results/, as written by
+% scripts/run_spdnet.py and scripts/make_table.py, so re-running make_table.py updates the report.
+% From report/main.tex, define before \input:
+%   \newcommand{\resultsdir}{../results}
+
+\providecommand{\pending}[1]{\textcolor{red}{#1}}
+\providecommand{\resultsdir}{../../results}
+% Includes \resultsdir/figures/<name>.png (or .pdf); red placeholder if it does not exist yet.
+\providecommand{\includeresult}[2]{%
+  \IfFileExists{\resultsdir/figures/#1.pdf}{\includegraphics[width=#2]{\resultsdir/figures/#1.pdf}}{%
+  \IfFileExists{\resultsdir/figures/#1.png}{\includegraphics[width=#2]{\resultsdir/figures/#1.png}}{%
+  \fbox{\parbox[c][3cm][c]{\dimexpr#2-2\fboxsep-2\fboxrule\relax}{\centering\pending{Missing figure: \texttt{\detokenize{#1}}}}}}}}
+
+% =====================================================================================
+\subsection{Riemannian neural network: SPDNet}
+\label{sec:spdnet}
+
+The classical Riemannian methods of \pending{Section~4.4} rely on a fixed representation of each trial. MDM compares the covariance matrix with the class means and weighs all directions of the manifold equally, so directions that only carry noise count as much as discriminative ones. TS+LR does learn which directions matter, but it flattens the whole manifold at a single point, the mean, which distorts trials that lie far from it, and it fits a linear classifier on all 253 tangent coordinates, a large number compared with the 288 training trials.
+
+SPDNet \citep{huang2017} addresses these limitations while keeping every intermediate representation on the SPD manifold. Its bilinear layers learn a reduction of the covariance matrix to a lower-dimensional SPD matrix, which selects the subspace most useful for classification, its eigenvalue rectification adds a non-linearity, and both are trained jointly with the classifier. It is also the building block of recent geometric deep learning models for motor imagery \citep{ju2023, kobler2022}. In this project it serves a second purpose: since its weights are constrained to a manifold, it allows us to test whether respecting the geometry matters not only for the data but also for the learned parameters (the ablation below). Whether this additional flexibility pays off with only 288 trials per subject is an empirical question, which Section~\ref{sec:results} addresses. Its layers are described in \pending{Section~3}; here we only describe the configuration we used and the experimental protocol.
+
+\paragraph{Architecture.}
+Each trial enters the network as its $22 \times 22$ covariance matrix. Two blocks of a bilinear layer (BiMap) followed by an eigenvalue rectification (ReEig) reduce it to $16 \times 16$ and then $8 \times 8$, LogEig maps the result to the tangent space at the identity, and its 36 independent entries feed a linear softmax classifier:
+\begin{equation}
+  \mathcal{S}^{++}_{22} \xrightarrow{\text{BiMap, ReEig}} \mathcal{S}^{++}_{16}
+  \xrightarrow{\text{BiMap, ReEig}} \mathcal{S}^{++}_{8}
+  \xrightarrow{\text{LogEig}} \mathcal{S}_{8} \cong \mathbb{R}^{36}
+  \xrightarrow{\text{linear}} \mathbb{R}^{4}.
+  \label{eq:spdnet}
+\end{equation}
+Since the BiMap weights are constrained to Stiefel manifolds, the network has 456 free parameters: $\dim \mathrm{St}(22,16) = 216$ and $\dim \mathrm{St}(16,8) = 92$ for the filters, and 148 for the classifier. This is more than the 288 training trials of each subject, so overfitting is the main risk, and the protocol below relies on validation and on repeating each run with several seeds. We use the implementation described in \pending{Section~3}. Covariance matrices are estimated with Oracle Approximating Shrinkage (OAS; \citealp{chen2010}), which improves their conditioning before the eigenvalue decompositions of the network.
+
+\paragraph{Training protocol.}
+As for the other methods, the network is trained on session 1 and tested once on session 2 (Section~\ref{sec:data}). Since LogEig takes the logarithm at the identity, and the tangent space approximates the manifold best near the point where it is taken, the input matrices are first re-centred at the identity, $C_i \mapsto M^{-1/2} C_i M^{-1/2}$, where $M$ is the Riemannian mean of session 1. For each subject and seed:
+\begin{enumerate}
+  \item \emph{Number of epochs, with session 1 only.} Session 1 is split into 80\,\% for fitting and 20\,\% (58 trials) for validation, stratified by class, and the validation part is re-centred with the mean of the fitting part only. The network is trained for 400 epochs, and we keep the epoch with the lowest validation loss, which is less noisy than the validation accuracy on so few trials.
+  \item \emph{Final model.} A new network, with the same initial weights, is trained on all of session 1 for that number of epochs, so that all 288 trials are used, and is evaluated once on session 2.
+\end{enumerate}
+The BiMap weights are updated by Riemannian gradient descent on the Stiefel manifold, which projects the gradient onto the tangent space, takes the step and maps the result back to the manifold with a QR retraction \citep{absil2008}. The classifier is trained with Adam \citep{kingma2015} (learning rate $10^{-2}$, weight decay $10^{-3}$), with mini-batches of 32 trials. Since the optimisation problem is not convex, each experiment is repeated with 5 seeds, which change the initial weights, the validation split and the order of the mini-batches. We report the mean over seeds and, as an additional variant, the \emph{ensemble} of the 5 networks, which averages their class probabilities and requires no additional training.
+
+\paragraph{Hyperparameters.}
+The size of the layers, the ReEig threshold $\varepsilon$ and the learning rate of the BiMap weights were chosen by grid search (Table~\ref{tab:spdnet_hparams}). Each of the 18 combinations was evaluated with step~1 of the protocol above, on session 1 only and with the same 400 epochs as the final runs, and ranked by its validation accuracy averaged over the 9 subjects and 2 seeds. A single configuration is used for all subjects, since with 58 validation trials, choosing one per subject would mostly fit noise. The two versions of the ablation (see below) were tuned separately, so that neither is penalised by hyperparameters chosen for the other. The best combinations differ by a few tenths of a point, much less than the spread across subjects (about 15 points), so the results are not sensitive to this choice.
+
+\begin{table}[htbp]
+  \centering
+  \caption{SPDNet hyperparameters, chosen on session 1 only. Each optimisation mode of the ablation was tuned separately.}
+  \label{tab:spdnet_hparams}
+  \begin{tabular}{lll}
+    \toprule
+    Hyperparameter & Values tried & Chosen (Riemannian / Euclidean) \\
+    \midrule
+    BiMap output sizes & (16, 8), (12, 6) & (16, 8) / (16, 8) \\
+    ReEig threshold $\varepsilon$ & $10^{-4}$, 0.25, 0.5 & 0.25 / 0.5 \\
+    BiMap learning rate & 0.1, 0.3, 0.5 & 0.5 / 0.3 \\
+    \midrule
+    Validation accuracy (\%) & & 70.8 / 69.4 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\paragraph{Ablation: does the geometry of the weights matter?}
+SPDNet respects the Riemannian geometry twice: in the data, which remain SPD throughout the network, and in the parameters, since the BiMap weights remain on the Stiefel manifold ($W^\top W = I$). To isolate the second, we compare two update rules for $W$:
+\begin{equation}
+  \underbrace{W \leftarrow \mathrm{qf}\big(W - \eta\, \pi_W(\nabla_W L)\big)}_{\text{Riemannian (SPDNet)}}
+  \qquad \text{versus} \qquad
+  \underbrace{W \leftarrow W - \eta\, \nabla_W L}_{\text{Euclidean (ablation)}},
+  \label{eq:ablation}
+\end{equation}
+where $\nabla_W L$ is the gradient of the loss computed by backpropagation, $\pi_W(G) = G - W\,\mathrm{sym}(W^\top G)$ is its projection onto the tangent space of the Stiefel manifold at $W$, with $\mathrm{sym}(A) = \tfrac12(A + A^\top)$, and $\mathrm{qf}$ denotes the orthonormal factor of the QR decomposition, which maps the updated matrix back to the manifold \citep{absil2008}. Everything else is shared: the data, the re-centring, the classifier and its optimiser, the protocol and, for a given seed, the initial weights and the mini-batches. Each version uses its own tuned hyperparameters (Table~\ref{tab:spdnet_hparams}). With the Euclidean rule, the filters can change their norm and become nearly redundant. The intermediate matrices remain SPD, since $W^\top X W$ is SPD whenever $W$ has full column rank and ReEig keeps every eigenvalue above $\varepsilon$, but they can become badly conditioned. The ablation therefore changes only the geometry of the parameters, not that of the data. We measure how far the weights leave the manifold with $\max_{ij} \lvert (W^\top W - I)_{ij} \rvert$, which is zero on the Stiefel manifold.
+
+\paragraph{Session re-centring.}
+Between sessions, the cap position and the electrode impedances change. This acts on the covariance matrices approximately as a congruence $C \mapsto A C A^\top$ \citep{zanini2018}, which shifts the whole session to another region of the manifold, away from where the classifier learned the classes. We therefore also evaluate a variant in which \emph{each} session is re-centred with its own Riemannian mean: session 1 with $M_1$ and session 2 with $M_2$. Since the Riemannian mean is equivariant under congruences ($M_2 = A M_1 A^\top$ for a common shift $A$), this removes the shift up to a rotation, which leaves both sessions centred at the identity, and by affine invariance it does not change any distance within a session. The adaptation is unsupervised: $M_2$ is computed from the matrices of session 2 but never from their labels, which are used only to compute the final accuracy. In a real BCI it would correspond to recording a short block without labels at the start of each session; here, for simplicity, $M_2$ is computed from all the trials of session 2. For a fair comparison, MDM and TS+LR are also evaluated with the same session re-centring (\pending{Section~4.4}), and all results are reported with and without it.
+
+% =====================================================================================
+\section{Results}
+\label{sec:results}
+% \pending{Section number and level to be checked when merging (here: section 5).}
+
+\subsection{Comparison of methods}
+\label{sec:comparison}
+
+Table~\ref{tab:comparison} and Figure~\ref{fig:comparison} report the test accuracy of every method on each subject, without and with session re-centring. Since all methods share the same data, preprocessing and protocol, the differences between them can only come from how each one treats the geometry of the covariance matrices.
+
+\input{\resultsdir/comparison_table.tex}
+
+\begin{figure}[htbp]
+  \centering
+  \includeresult{comparison}{\textwidth}
+  \caption{Test accuracy of each method per subject, without (top) and with (bottom) session re-centring. The dashed line is chance level (25\,\%).}
+  \label{fig:comparison}
+\end{figure}
+
+\paragraph{Euclidean versus Riemannian.}
+Without re-centring, the best Riemannian method, TS+LR, reaches 66.8\,\% ($\kappa = 0.56$), against 62.8\,\% ($\kappa = 0.50$) for the Euclidean baseline CSP+LDA, and is better in 7 of the 9 subjects. SPDNet (64.6\,\%) is also above CSP+LDA, in 6 of the 9 subjects, while MDM (60.5\,\%) is slightly below it. None of these differences is statistically significant with 9 subjects (Holm-corrected $p \geq 0.16$; all $p$-values in the text are corrected, see Table~\ref{tab:paired}). \pending{No re-centred CSP+LDA is available, so this comparison can only be made without re-centring.}
+
+\paragraph{Classical Riemannian methods versus SPDNet.}
+SPDNet is better than MDM in both conditions (by 4.0 points without re-centring and 4.2 with it), but not better than TS+LR, which is the best single-band method in both: 66.8\,\% against 64.6\,\% without re-centring, and 71.4\,\% against 69.6\,\% with it. In both cases SPDNet is better in only 2 of the 9 subjects. The ensemble of the 5 networks (70.6\,\%) narrows the gap but remains below TS+LR. The filter bank version of TS+LR reaches 73.4\,\%, but it uses several frequency bands and is therefore not directly comparable.
+
+\paragraph{Effect of session re-centring.}
+Re-centring each session with its own mean improves all the methods to which it was applied: MDM by 4.9 points, TS+LR by 4.6, SPDNet by 5.0 and its Euclidean version by 3.7. It is the largest and most consistent effect in the table: SPDNet improves in all 9 subjects ($p = 0.016$), and TS+LR and the Euclidean SPDNet in 8 of the 9 ($p = 0.059$).
+
+\subsection{Behaviour of SPDNet}
+\label{sec:spdnet_results}
+
+\paragraph{Ablation: optimisation of the weights.}
+Figure~\ref{fig:ablation} compares the two update rules of Eq.~\eqref{eq:ablation} subject by subject. Without session re-centring, both versions reach the same mean accuracy (64.6\,\%) and each is better in about half of the subjects. With session re-centring, the Riemannian version is better by 1.3 points, in 8 of the 9 subjects ($p = 0.039$). It is also more stable: the standard deviation of a subject's accuracy across the 5 seeds is about half that of the Euclidean version (2.6 against 4.9 points without re-centring, and 1.7 against 3.4 with it). The Euclidean weights move far from the Stiefel manifold ($\max_{ij} \lvert (W^\top W - I)_{ij} \rvert \approx 12$ on average, against $10^{-15}$ for the Riemannian version). Their filters can shrink, which produces small eigenvalues after BiMap: ReEig acts on 7.4\,\% of them in the first layer, against 0.1\,\% in the Riemannian version. The Euclidean network is therefore less linear, but this does not make it more accurate. Respecting the geometry of the weights thus brings a small gain in accuracy with session re-centring, and a clear gain in stability.
+
+\begin{figure}[htbp]
+  \centering
+  \includeresult{ablation}{0.75\textwidth}
+  \caption{Ablation. Each point is a subject: test accuracy with Euclidean (horizontal) and Riemannian (vertical) optimisation of the BiMap weights, without (left) and with (right) session re-centring. Points above the diagonal favour the Riemannian optimisation.}
+  \label{fig:ablation}
+\end{figure}
+
+\paragraph{Session re-centring.}
+The gain from session re-centring is concentrated in the subjects whose accuracy dropped most between sessions. Comparing the validation accuracy on session 1 with the test accuracy on session 2, subjects 7, 8 and 3 lost 18.1, 17.4 and 10.1 points before re-centring, and they gain 15.7, 9.4 and 5.9 points with it, while subjects 2, 5 and 6, which lost less than 5 points, gain less than 1.5. The relation is not strict (subject 9 lost only 2.9 points and gains 7.3), but on average re-centring reduces the gap between validation and test from 6.7 to 1.7 points, about three quarters of the drop between sessions. The remaining gap can be due to the rotation that re-centring does not correct (Section~\ref{sec:spdnet}) and to changes in the brain activity of the subject from one day to the next. This suggests that most of the drop between sessions is due to a shift of the whole session, such as a different cap position, which re-centring removes, rather than to a change in how the classes are distributed.
+
+\paragraph{Training behaviour.}
+Figure~\ref{fig:curves} shows the training and validation loss during the choice of the number of epochs. In the subjects with the highest accuracy (1, 3, 7 and 8), the validation loss decreases during the first 50 epochs and then stays flat. In the other five (2, 4, 5, 6 and 9), it reaches its minimum between epochs 20 and 80 and then increases while the training loss keeps decreasing: the network overfits the training trials. Moreover, with only 58 validation trials the curve is noisy, and the selected epoch sometimes falls long after that minimum, when the network has already overfitted (for subject 4, the median selected epoch over the 5 seeds is 336). This affects precisely the subjects with the lowest accuracy.
+
+\begin{figure}[htbp]
+  \centering
+  \includeresult{spdnet_riemann_session_curves}{0.85\textwidth}
+  \caption{Training and validation loss of SPDNet with session re-centring, averaged over the 5 seeds, during the choice of the number of epochs on session 1.}
+  \label{fig:curves}
+\end{figure}
+
+\paragraph{Why SPDNet does not outperform TS+LR.}
+We see three reasons, which our measurements support. First, the difficulty is not the number of parameters alone: the logistic regression of TS+LR has more (1016, against 456), but its optimisation problem is convex and regularised, so it always reaches the same solution and needs no choice of epochs. The problem of SPDNet is not convex: its result depends on the initial weights, and the number of epochs is chosen on a noisy validation set, which leads to overfitting in the hardest subjects (Figure~\ref{fig:curves}). Second, the non-linearity of the network barely acts. When the columns of $W$ are orthonormal, the eigenvalues of $W^\top X W$ lie between the smallest and largest eigenvalues of $X$ (Poincaré separation theorem; \citealp{bhatia1997}), so a BiMap layer cannot create eigenvalues below $\varepsilon$. After re-centring, the eigenvalues of the input are close to 1, so the first ReEig acts on only 0.1\,\% of them, and the second, whose input has already been rectified, never acts (0\,\% in our runs). The network is therefore almost linear: a learned reduction to an $8 \times 8$ matrix followed by a logistic regression on its 36 tangent coordinates, close to TS+LR but with fewer features, so the reduction can discard useful information without any non-linearity to compensate for it. Third, neural networks for motor imagery are usually trained on many crops of each trial \citep{schirrmeister2017} or on data from other subjects, precisely to compensate for the small number of trials. We excluded both, so that all methods use exactly the same data.
+
+\paragraph{Ensemble.}
+Averaging the class probabilities of the 5 networks of each subject, one per seed, improves the accuracy by 1.0 points, to 70.6\,\% ($\kappa = 0.61$), in 8 of the 9 subjects ($p = 0.008$). Since each seed reaches a different solution of the non-convex problem, the ensemble reduces the variability that comes from the optimisation. It reduces the gap with TS+LR from 1.8 to 0.8 points, but does not close it: part of the gap is due to the optimisation, and the rest to the model itself, which is almost linear and reduces the dimension of the data.
+
+\subsection{Discussion and conclusions}
+\label{sec:discussion}
+
+\pending{Shared by the whole group. Points to cover: which method works best and why; Riemannian versus Euclidean; why SPDNet does not outperform TS+LR (see Section~\ref{sec:spdnet_results}); the role of session re-centring; limitations (9 subjects, a single frequency band and time window, no data augmentation or transfer between subjects).}
