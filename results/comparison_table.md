@@ -1,17 +1,53 @@
-Test accuracy (%) on day 2 (chance = 25 %; significance threshold ~29 % with 288 trials).
+# Comparison of methods
 
-| | SPDNet | SPDNet (Euclidean opt.) | SPDNet + session recentering | SPDNet (Euclidean opt.) + session recentering | SPDNet + session recentering (ensemble of 5 seeds) |
-|---|---|---|---|---|---|
-| S1 | 80.4 | 80.1 | 82.0 | 81.9 | 82.6 |
-| S2 | 55.1 | 57.1 | 55.6 | 55.3 | 55.2 |
-| S3 | 78.8 | 77.8 | 84.7 | 82.5 | 85.1 |
-| S4 | 63.7 | 57.8 | 66.7 | 63.5 | 68.1 |
-| S5 | 45.4 | 41.3 | 46.8 | 43.8 | 48.3 |
-| S6 | 53.4 | 50.4 | 54.0 | 51.7 | 56.6 |
-| S7 | 66.7 | 72.6 | 82.4 | 81.9 | 83.0 |
-| S8 | 71.2 | 72.6 | 80.6 | 81.0 | 81.9 |
-| S9 | 66.0 | 71.5 | 73.3 | 72.8 | 74.3 |
-| Mean | 64.6 | 64.6 | 69.6 | 68.3 | 70.6 |
-| Std over subjects | 11.7 | 13.4 | 14.4 | 15.1 | 14.1 |
-| Mean kappa | 0.527 | 0.528 | 0.594 | 0.577 | 0.608 |
-| Wilcoxon p vs SPDNet | - | 1.0 | 0.004 | 0.203 | 0.004 |
+Test accuracy (%) on session 2, training on session 1. Chance = 25 %; significance threshold ~29 % with 288 trials. Methods with several seeds: mean over seeds; *Seed std* = mean over subjects of the std over seeds.
+
+## Without session recentering
+
+| Method | S1 | S2 | S3 | S4 | S5 | S6 | S7 | S8 | S9 | Mean | Std | Kappa | Seed std |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| CSP+LDA | 77.8 | 54.5 | 78.8 | 61.1 | 35.1 | 51.0 | 61.5 | 76.7 | 68.4 | 62.8 | 14.5 | 0.504 | - |
+| MDM | 74.0 | 54.5 | 66.7 | 64.9 | 39.9 | 45.1 | 49.3 | 72.2 | 78.1 | 60.5 | 13.7 | 0.474 | - |
+| TS+LR | 81.9 | 52.4 | 80.9 | 61.8 | 51.0 | 56.6 | 67.0 | 73.6 | 76.0 | 66.8 | 12.0 | 0.558 | - |
+| SPDNet (Euclidean opt.) | 80.1 | 57.1 | 77.8 | 57.8 | 41.3 | 50.4 | 72.6 | 72.6 | 71.5 | 64.6 | 13.4 | 0.528 | 4.9 |
+| SPDNet | 80.4 | 55.1 | 78.8 | 63.7 | 45.4 | 53.4 | 66.7 | 71.2 | 66.0 | 64.6 | 11.7 | 0.527 | 2.6 |
+
+## With session recentering
+
+| Method | S1 | S2 | S3 | S4 | S5 | S6 | S7 | S8 | S9 | Mean | Std | Kappa | Seed std |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| MDM + session recentering | 76.7 | 60.4 | 76.0 | 61.1 | 39.9 | 47.2 | 74.7 | 79.2 | 73.3 | 65.4 | 14.1 | 0.539 | - |
+| TS+LR + session recentering | 82.3 | 55.2 | 85.4 | 65.3 | 49.3 | 57.3 | 84.7 | 85.1 | 78.1 | 71.4 | 14.6 | 0.619 | - |
+| TS+LR (tuned C) + session recentering | 81.9 | 58.7 | 85.4 | 65.3 | 50.7 | 56.2 | 85.1 | 85.4 | 78.5 | 71.9 | 14.1 | 0.626 | - |
+| SPDNet (Euclidean opt.) + session recentering | 81.9 | 55.3 | 82.5 | 63.5 | 43.8 | 51.7 | 81.9 | 81.0 | 72.8 | 68.3 | 15.1 | 0.577 | 3.4 |
+| SPDNet + session recentering | 82.0 | 55.6 | 84.7 | 66.7 | 46.8 | 54.0 | 82.4 | 80.6 | 73.3 | 69.6 | 14.4 | 0.594 | 1.7 |
+| SPDNet + session recentering (ensemble of 5 seeds) | 82.6 | 55.2 | 85.1 | 68.1 | 48.3 | 56.6 | 83.0 | 81.9 | 74.3 | 70.6 | 14.1 | 0.608 | - |
+
+## Other variants (not directly comparable: several frequency bands)
+
+| Method | S1 | S2 | S3 | S4 | S5 | S6 | S7 | S8 | S9 | Mean | Std | Kappa | Seed std |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Filter bank TS+LR (tuned C) + session recentering | 85.8 | 59.4 | 83.0 | 68.8 | 61.5 | 56.9 | 84.0 | 84.4 | 76.7 | 73.4 | 11.8 | 0.645 | - |
+
+## Paired comparisons
+
+Two-sided paired Wilcoxon signed-rank test over the 9 subjects, on accuracy (for 4 balanced classes kappa = (acc - 0.25) / 0.75, so the test on kappa is identical). With 9 subjects the smallest possible p is 0.004. *p (Holm)* corrects for the comparisons that answer the same question (same name, both conditions).
+
+| Comparison | A | B | Mean diff (A - B) | A better in | p | p (Holm) |
+|---|---|---|---|---|---|---|
+| Riemannian vs Euclidean (without RC) | MDM | CSP+LDA | -2.2 | 3/9 | 0.398 | 0.531 |
+| Riemannian vs Euclidean (without RC) | TS+LR | CSP+LDA | 4.1 | 7/9 | 0.055 | 0.164 |
+| Riemannian vs Euclidean (without RC) | SPDNet | CSP+LDA | 1.8 | 6/9 | 0.266 | 0.531 |
+| Network vs classical (without RC) | SPDNet | TS+LR | -2.3 | 2/9 | 0.129 | 0.387 |
+| Network vs classical (without RC) | SPDNet | MDM | 4.0 | 6/9 | 0.25 | 0.391 |
+| Network vs classical (with RC) | SPDNet + session recentering | TS+LR + session recentering | -1.9 | 2/9 | 0.055 | 0.219 |
+| Network vs classical (with RC) | SPDNet + session recentering | MDM + session recentering | 4.2 | 8/9 | 0.02 | 0.117 |
+| Network vs classical (with RC) | SPDNet + session recentering | TS+LR (tuned C) + session recentering | -2.4 | 2/9 | 0.027 | 0.137 |
+| Network vs classical (with RC) | SPDNet + session recentering (ensemble of 5 seeds) | TS+LR + session recentering | -0.8 | 2/9 | 0.195 | 0.391 |
+| Ablation: optimisation of W (without RC) | SPDNet | SPDNet (Euclidean opt.) | 0.0 | 5/9 | 1.0 | 1.0 |
+| Ablation: optimisation of W (with RC) | SPDNet + session recentering | SPDNet (Euclidean opt.) + session recentering | 1.3 | 8/9 | 0.02 | 0.039 |
+| Effect of session recentering | MDM + session recentering | MDM | 4.9 | 6/9 | 0.148 | 0.148 |
+| Effect of session recentering | TS+LR + session recentering | TS+LR | 4.6 | 8/9 | 0.02 | 0.059 |
+| Effect of session recentering | SPDNet (Euclidean opt.) + session recentering | SPDNet (Euclidean opt.) | 3.7 | 8/9 | 0.02 | 0.059 |
+| Effect of session recentering | SPDNet + session recentering | SPDNet | 5.0 | 9/9 | 0.004 | 0.016 |
+| Seed ensemble | SPDNet + session recentering (ensemble of 5 seeds) | SPDNet + session recentering | 1.0 | 8/9 | 0.008 | 0.008 |
